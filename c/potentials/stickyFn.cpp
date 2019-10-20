@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
-namespace bd{
+#include "physics.h"
 
 void stickyF(double E, double rho, double beta, double k0, double& f, double& fprime) {
 	//evaluate the sticky function and derivative for root finding
@@ -22,6 +22,4 @@ double stickyNewton(double E, double rho, double k0, double beta) {
 		x0 = x1;
 	}
 	return x1;
-}
-
 }
