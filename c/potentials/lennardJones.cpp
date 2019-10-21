@@ -54,6 +54,8 @@ void ljGrad(double* particles, double rho, double E, int N, column_vector& g) {
     }
   }
   delete []S;
+
+  g(0) = 0; g(1) = 0; g(2) = 0; g(4) = 0; g(5) = 0; g(8) = 0;
 }
 
 void hessLJ(double* particles, double rho, double E, int N, double* H) {

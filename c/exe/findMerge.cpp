@@ -17,13 +17,7 @@ int main(int argc, char* argv[]) {
 
 	int num_clusters = getNumClusters(N);
 
-	double* clusters = new double[DIMENSION*N*num_clusters];
-	getSHS(N,num_clusters,clusters);
-	//descent(N, num_clusters, clusters, kapType, potential);
-	parallelDescent(N, num_clusters, clusters, kapType, potential);
-	
-
-	delete []clusters;
+	findMerges(N, num_clusters, kapType, potential);
 
 
 

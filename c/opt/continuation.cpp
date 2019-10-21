@@ -138,9 +138,42 @@ void getSHS(int N, int num_clusters, double* clusters) {
 	double val; int entry = 0;
 	while (in_str >> val) {
 		clusters[entry] = val;
-		std::cout << clusters[entry] << "\n";
+		//std::cout << clusters[entry] << "\n";
 		entry++;
 	}
+}
+
+void getFinite(int N, int sticky, int potential, double range, 
+							 double* clusters) {
+	//import the clusters found at given range from descent
+
+	//file location
+	std::string filename = "output/n" + std::to_string(N);
+	if (potential == 0) filename += "rho";
+	else if (potential == 1) filename += "m";
+	std::string s = std::to_string(range); s.erase(s.size()-4,s.size());
+	filename += s;
+	if (sticky == 0) filename += "LOW.txt";
+	else if (sticky == 1) filename += "MED.txt";
+	else if (sticky == 2) filename += "HIGH.txt";
+
+	//open the file
+	std::ifstream in_str(filename);
+
+	//check if the file can be opened
+	if (!in_str) {
+		fprintf(stderr, "Cannot open file %s\n", filename.c_str());
+		return;
+	}
+
+	//store the entries
+	double val; int entry = 0;
+	while (in_str >> val) {
+		clusters[entry] = val;
+		//std::cout << clusters[entry] << "\n";
+		entry++;
+	}
+
 }
 
 void printClusters(int N, int num_clusters, double* clusters, double range, 
@@ -256,8 +289,67 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		printClusters(N, num_clusters, clusters, range, sticky, potential);
 
 		//test if same 
-		double d;
-		std::cout << range << ' ' << testSame(N, clusters, 0, 1, d) << ' ' << d << "\n";
+		//double d;
+		//std::cout << range << ' ' << testSame(N, clusters, 0, 1, d) << ' ' << d << "\n";
+
+		//tell user the progress
+		if (abs(range - (int)range) < 1e-6)  {
+			printf("Clusters at %f have been stored\n", range);
+		}
+
+		//reduce the range parameter
+		range -= STEP;
+		
+	}
+}
+
+void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int potential) {
+	//perform the descent with given parameters - omp parallel
+
+	double range = 50;               //set the initial range 
+	double E0 = getEnergy0(sticky);  //energy at range 50
+	double E = E0;                   //energy at arbitrary range
+	double kappa, kappaD;            //kappa and its derivative
+	stickyF(E0, range, 1, 0, kappa, kappaD); //get initial kappa
+	double end = 1;
+
+	range = range - STEP;
+	while (range > end) {
+		//get the energy from sticky parameter value 
+		E = stickyNewton(E0, range, kappa, 1); 
+
+		//construct the parameters object 
+		Parameters p = Parameters(N, potential, range, E);
+
+		//loop over the clusters 
+		#pragma omp parallel for 
+		for (int c = 0; c < num_clusters; c++) {
+			//get the previous cluster
+			column_vector X(DIMENSION*N); 
+			getCluster(N, clusters, c, X);
+
+			//perform minimization
+			find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
+             objective_delta_stop_strategy(1e-13), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
+             [&p](const column_vector& a) {return p.getU(a);}, 
+             [&p](const column_vector& a) {return p.getGrad(a);}, 
+             X, -10000);
+
+			//store the new minimum
+			storeCluster(N, X, c, clusters);
+		}
+
+		//output the cluters to a file
+		printClusters(N, num_clusters, clusters, range, sticky, potential);
+
+		//test if same 
+		//double d;
+		//std::cout << range << ' ' << testSame(N, clusters, 0, 1, d) << ' ' << d << "\n";
+
+		//tell user the progress
+		if (abs(range - (int)range) < 1e-6)  {
+			printf("Clusters at %f have been stored\n", range);
+		}
 
 		//reduce the range parameter
 		range -= STEP;
@@ -293,8 +385,65 @@ void testCV(double* clusters) {
              Y, -10000);
     // Once the function ends the starting_point vector will contain the optimum point 
     // of (1,1).
-    std::cout << "rosen solution:\n" << X << "\n";
-    std::cout << "rosen solution:\n" << Y << "\n";
+    std::cout  << X << "\n";
+    std::cout  << Y << "\n";
 }
+
+/****************************************************************************/
+
+/* Functions for finding merges */
+
+/****************************************************************************/
+
+
+bool isMerged(int cluster, std::vector<int> merged) {
+	//determine if cluster has already merged
+	std::vector<int>::iterator it = std::find(merged.begin(), merged.end(), cluster);
+	if (it != merged.end()) {
+		return true;
+	}
+	return false;
+}
+
+void findMerges(int N, int num_clusters, int sticky, int potential) {
+	//determine when clusters merge
+
+	double range = 50;
+	double* clusters = new double[DIMENSION*N*num_clusters];
+	std::vector<int> merged; //merged cluster storage
+	double end = 1;
+
+	double distance;
+
+	range = range - STEP;
+	while (range > end) {
+		getFinite(N, sticky, potential, range, clusters);
+
+		for (int i = 0; i < num_clusters; i++) {
+			if (!isMerged(i, merged)) {
+				for (int j = i+1; j < num_clusters; j++) {
+					if (!isMerged(j, merged)) {
+						bool same = testSame(N, clusters, i, j, distance);
+						if (same) {
+							printf("Cluster %d and cluster %d merge at range %f\n", i, j, range);
+							merged.push_back(j);
+						}
+					}
+				}
+			}
+
+		}
+
+		range -= STEP;
+	}
+
+
+
+	//free memory
+	delete []clusters;
+
+}
+
+
 
 
