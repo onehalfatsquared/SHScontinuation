@@ -44,4 +44,6 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance);
 //merges
 bool isMerged(int cluster, std::vector<int> merged); 
 void findMerges(int N, int num_clusters, int sticky, int potential); 
+double rMin(int N, int cNum, double* clusters, double rho); 
+void rMinFill(int N, int num_clusters, double* clusters, double* rMins, double rho);
 

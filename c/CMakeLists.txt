@@ -9,6 +9,8 @@ add_subdirectory(potentials)
 include_directories(potentials)
 add_subdirectory(opt)
 include_directories(opt)
+add_subdirectory(graphviz)
+include_directories(graphviz)
 add_subdirectory(exe)
 
 file(COPY input DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/exe)

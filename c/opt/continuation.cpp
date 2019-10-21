@@ -196,6 +196,8 @@ void printClusters(int N, int num_clusters, double* clusters, double range,
 	for (int val = 0; val < num_clusters*N*DIMENSION; val++) {
 		ofile << std::fixed << std::setprecision(16) << clusters[val] << ' ';
 	}
+
+	ofile.close();
 	
 }
 
@@ -405,15 +407,38 @@ bool isMerged(int cluster, std::vector<int> merged) {
 	return false;
 }
 
+void rMinFill(int N, int num_clusters, double* clusters, double* rMins, double rho) {
+	//fill in rMin for all current clusters
+
+	for (int i = 0; i < num_clusters; i++) {
+		rMins[i] = rMin(N, i, clusters, rho);
+	}
+
+}
+
 void findMerges(int N, int num_clusters, int sticky, int potential) {
 	//determine when clusters merge
 
+	//parameters
 	double range = 50;
 	double* clusters = new double[DIMENSION*N*num_clusters];
 	std::vector<int> merged; //merged cluster storage
 	double end = 1;
-
+	double* rMins = new double[num_clusters]; 
 	double distance;
+
+	//output file - list of merges and ranges
+	std::string filename = "../graphviz/n" + std::to_string(N);
+	if (potential == 0) filename += "rho";
+	else if (potential == 1) filename += "m";
+	if (sticky == 0) filename += "LOW";
+	else if (sticky == 1) filename += "MED";
+	else if (sticky == 2) filename += "HIGH";
+	filename += "merges.txt";
+
+	std::ofstream ofile;
+	ofile.open(filename);
+
 
 	range = range - STEP;
 	while (range > end) {
@@ -425,23 +450,73 @@ void findMerges(int N, int num_clusters, int sticky, int potential) {
 					if (!isMerged(j, merged)) {
 						bool same = testSame(N, clusters, i, j, distance);
 						if (same) {
-							printf("Cluster %d and cluster %d merge at range %f\n", i, j, range);
-							merged.push_back(j);
+							//check rMins for smooth cluster
+							double r1 = rMins[i]; double r2 = rMins[j];
+							//std::cout << r1 << ' ' << r2 << "\n";
+								printf("Cluster %d (rmin = %f) and cluster %d (rmin = %f) merge at range %f\n", i,r1,j,r2,range);
+								ofile << i+1 << ' ' << j+1 << ' ' << std::fixed << std::setprecision(4) << range << "\n";
+								merged.push_back(j);
 						}
 					}
 				}
 			}
 
 		}
-
+		rMinFill(N, num_clusters, clusters, rMins, range);
 		range -= STEP;
 	}
 
 
 
 	//free memory
-	delete []clusters;
+	delete []clusters; delete []rMins;
 
+	ofile.close();
+
+}
+
+double rMin(int N, int cNum, double* clusters, double rho) {
+	//return the rMin value for a given cluster
+
+	//set the tolerance for existing bonds as rough fn of rho
+	double tol;
+	if (rho > 30) tol = 1.01;
+	if (rho <= 30 && rho > 3.5) tol = 1.03;
+	if (rho <= 3.5) tol = 1.42;
+
+	//store clusters in column vectors
+	column_vector cluster(DIMENSION*N);
+	getCluster(N, clusters, cNum, cluster); 
+
+	//make particle arrays
+	double* particles = new double[N*DIMENSION];
+	c2p(cluster, particles, N); 
+
+	//make vectors with distances
+	std::vector<double> dist;
+	double* Z = new double[DIMENSION];
+	for (int i = 0; i < N; i++) {
+		for (int j = i+1; j < N; j++) {
+			dist.push_back(euDist(particles, i, j, N, Z)); 
+		}
+	}
+
+	//find the minimum entry of the vector, greater than 1
+	double rmin = 1000;
+	for (int i = 0; i < dist.size(); i++) {
+		if (dist[i] < rmin && dist[i] > tol) {
+			rmin = dist[i];
+		}
+	}
+
+	if (rmin == 1000) rmin = 1;
+
+
+	//free memory
+	delete []particles; delete []Z;
+
+	//return rmin
+	return rmin;
 }
 
 
