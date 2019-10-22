@@ -19,8 +19,8 @@ class Parameters {
 };
 
 #define LOW 7.5
-#define MED 7.5
-#define HIGH 7.5
+#define MED 8.3
+#define HIGH 9.05
 
 #define STEP 0.01
 

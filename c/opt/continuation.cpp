@@ -454,7 +454,7 @@ void findMerges(int N, int num_clusters, int sticky, int potential) {
 							double r1 = rMins[i]; double r2 = rMins[j];
 							//std::cout << r1 << ' ' << r2 << "\n";
 								printf("Cluster %d (rmin = %f) and cluster %d (rmin = %f) merge at range %f\n", i,r1,j,r2,range);
-								ofile << i+1 << ' ' << j+1 << ' ' << std::fixed << std::setprecision(4) << range << "\n";
+								ofile << i << ' ' << j << ' ' << std::fixed << std::setprecision(4) << range << "\n";
 								merged.push_back(j);
 						}
 					}
