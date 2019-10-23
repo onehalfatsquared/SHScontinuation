@@ -18,9 +18,9 @@ class Parameters {
 
 };
 
-#define LOW 7.5
+#define LOW 7.51
 #define MED 8.3
-#define HIGH 9.05
+#define HIGH 9.5
 
 #define STEP 0.01
 
@@ -28,6 +28,7 @@ class Parameters {
 void testCV(double* clusters);
 void descent(int N, int num_clusters, double* clusters, int sticky, int potential);
 void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int potential);
+int countNegs(column_vector eig, int N);
 
 
 //functions to access shs and other clusters

@@ -252,6 +252,23 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
 
 /****************************************************************************/
 
+int countNegs(column_vector eig, int N) {
+	//count the number of negative eigenvalues
+
+	int entries = N*DIMENSION;
+	int negs = 0;
+	double tol = 1e-8;
+
+	for (int i = 0; i < entries; i++) {
+		double eVal = eig(i);
+		if (eVal < 0 && abs(eVal) > tol) {
+			negs++;
+			std::cout << eVal << "\n";
+		}
+	}
+
+	return negs;
+}
 void descent(int N, int num_clusters, double* clusters, int sticky, int potential) {
 	//perform the descent with given parameters 
 
@@ -271,24 +288,40 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < num_clusters; c++) {
+		for (int c = 12; c < 13; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
 
 			//perform minimization
 			find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
-             objective_delta_stop_strategy(1e-13), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
+             objective_delta_stop_strategy(1e-14), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
              [&p](const column_vector& a) {return p.getU(a);}, 
              [&p](const column_vector& a) {return p.getGrad(a);}, 
              X, -10000);
+
+			//compute the hessian
+			matrix<double> H; H = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
+			hessMorse(X, range, E, N, H);
+
+			eigenvalue_decomposition<matrix<double>> Hd(H); 
+			auto V = real(Hd.get_v());
+			auto v = colm(V, DIMENSION*N-4);
+			auto e = Hd.get_eigenvalues();
+
+			//std::cout << v << "\n";
+			auto y = H*v;
+			//std::cout << y(9)/v(9) << ' ' << y(10)/v(10) << ' ' << e(DIMENSION*N-4) << "\n";
+
+			std::cout << countNegs(real_eigenvalues(H),N)  << "\n";
+			//std::cout << Hd.get_eigenvalues() << "\n";
 
 			//store the new minimum
 			storeCluster(N, X, c, clusters);
 		}
 
 		//output the cluters to a file
-		printClusters(N, num_clusters, clusters, range, sticky, potential);
+		//printClusters(N, num_clusters, clusters, range, sticky, potential);
 
 		//test if same 
 		//double d;
@@ -332,7 +365,7 @@ void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int 
 
 			//perform minimization
 			find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
-             objective_delta_stop_strategy(1e-13), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
+             objective_delta_stop_strategy(1e-14), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
              [&p](const column_vector& a) {return p.getU(a);}, 
              [&p](const column_vector& a) {return p.getGrad(a);}, 
              X, -10000);

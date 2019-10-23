@@ -6,12 +6,16 @@ typedef matrix<double,0,1> column_vector;
 
 #define DIMENSION 3 //set to 3d optimization
 
+//general stuff
+bool isDoF(int i);
+int delta(int i, int j);
+
 //morse stuff
 double morseP(double r, double rho, double E);
 double morsePD(double r, double rho, double E);
 double morseEval(double* particles, double rho, double E, int N);
 void morseGrad(double* particles, double rho, double E, int N, column_vector& g);
-void hessMorse(double* particles, double rho, double E, int N, double* H);
+void hessMorse(column_vector cluster, double rho, double E, int N, matrix<double>& H);
 
 //lj stuff
 double ljP(double r, double rho, double E);

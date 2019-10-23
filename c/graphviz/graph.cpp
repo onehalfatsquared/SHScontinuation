@@ -72,7 +72,7 @@ void makeGraph(int N, int num_clusters, int sticky, int potential) {
 	std::ofstream out_str(out);
 
 	//write the graphviz header
-	out_str << "digraph merge {\n nodesep = 1.0; ranksep = 2; \n";
+	out_str << "digraph merge {\n";
 	out_str << "edge [ fontcolor=red, fontsize=48];\n";
 
 	//create an array of merge values
@@ -178,7 +178,7 @@ void makeGraph(int N, int num_clusters, int sticky) {
 	std::ofstream out_str(out);
 
 	//write the graphviz header
-	out_str << "digraph merge {\n nodesep = 1.0; ranksep = 2; \n";
+	out_str << "digraph merge {\n";
 	out_str << "edge [ fontcolor=red, fontsize=48];\n";
 
 	//create an array of merge values
