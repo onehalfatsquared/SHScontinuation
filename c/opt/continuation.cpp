@@ -205,7 +205,7 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
 	//check if two clusters are the same just by comparing list of particle distances
 
 	//set tolerance for sorted distances
-	double tol = 1e-6;
+	double tol = 1e-4;
 
 	//store cluster sin column vectors
 	column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
@@ -245,6 +245,46 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
 
 }
 
+bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
+	//check if two clusters are the same just by comparing list of particle distances
+
+	//set tolerance for sorted distances
+	double tol = 1e-2;
+
+	//make particle arrays
+	double* particles1 = new double[N*DIMENSION];
+	double* particles2 = new double[N*DIMENSION];
+	c2p(c1, particles1, N); c2p(c2, particles2, N);
+
+	//make vectors with distances
+	std::vector<double> d1, d2;
+	double* Z = new double[DIMENSION];
+	for (int i = 0; i < N; i++) {
+		for (int j = i+1; j < N; j++) {
+			d1.push_back(euDist(particles1, i, j, N, Z)); 
+			d2.push_back(euDist(particles2, i, j, N, Z)); 
+		}
+	}
+
+	//sort the distance vectors
+	sort(d1.begin(), d1.end()); sort(d2.begin(), d2.end()); 
+
+	//compute summed distance between elements
+	distance = 0;
+	for (int i = 0; i < d1.size(); i++) {
+		distance += abs(d1[i]-d2[i]);
+		//std::cout << d1[i] << ' ' << d2[i] << ' ' << distance << "\n";
+	}
+
+	//free memory
+	delete []particles1; delete []particles2; delete []Z;
+
+	//return if they are the same
+	if (distance < tol) return true;
+	return false;
+
+}
+
 
 /****************************************************************************/
 
@@ -252,8 +292,8 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
 
 /****************************************************************************/
 
-int countNegs(column_vector eig, int N) {
-	//count the number of negative eigenvalues
+int countNegs(column_vector eig, int N, std::vector<int>& indices) {
+	//count the number of negative eigenvalues - return their indices
 
 	int entries = N*DIMENSION;
 	int negs = 0;
@@ -263,12 +303,129 @@ int countNegs(column_vector eig, int N) {
 		double eVal = eig(i);
 		if (eVal < 0 && abs(eVal) > tol) {
 			negs++;
-			std::cout << eVal << "\n";
+			indices.push_back(i);
+			//std::cout << eVal << "\n";
 		}
 	}
 
 	return negs;
 }
+
+bool isMin(eigenvalue_decomposition<matrix<double>> Hd, int N, std::vector<int>& indices) {
+	//check if the hessian is positive definite
+
+	//get the eigenvalues
+	column_vector e = real(Hd.get_eigenvalues());
+
+	//check for negative eigenvalues
+	int negs = countNegs(e, N, indices);
+
+	//return false if negative eigenvalues are present
+	if (negs > 0) {
+		return false;
+	}
+
+	//no negative eigenvalues, this is a min
+	return true;
+}
+
+void reOpt(column_vector& X, double range, double E, int N, std::vector<int> indices,
+					 Parameters p, eigenvalue_decomposition<matrix<double>> Hd) {
+	//re-optimize the cluster that reached a saddle
+
+	//get the index of eigenvector with negative eigenvalue
+	int index = indices[0]; 
+
+	//construct the matrix of eigenvectors, grab the one in index
+	column_vector V = real(Hd.get_v());
+	column_vector v = colm(V, index);
+
+	//make new trial minima - left and right displacement
+	column_vector Yleft(N*DIMENSION); column_vector Yright(N*DIMENSION); 
+
+
+	//do re-opt left
+	double p_step = 1e-10; //step to take in direction of eigenvector
+	while (p_step < 1) {
+		Yleft = X - p_step * v;
+
+		//perform minimization
+		find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
+           objective_delta_stop_strategy(1e-14), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
+           [&p](const column_vector& a) {return p.getU(a);}, 
+           [&p](const column_vector& a) {return p.getGrad(a);}, 
+           Yleft, -10000);
+
+		//compute the hessian
+		matrix<double> Hleft; Hleft = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
+		hessMorse(Yleft, range, E, N, Hleft);
+
+		//eigenvalue decomposition of the hessian
+		eigenvalue_decomposition<matrix<double>> Hdleft(Hleft); 
+
+		//check for minimum
+		std::vector<int> neg_index;  //indices of negative eigenvalues
+		if (isMin(Hdleft, N, neg_index)) {
+			//printf("Escape at step %f\n", p_step);
+			break;
+		}
+		else {
+			p_step *= 10;
+		}
+	}
+
+	if (p_step > 1) {
+		std::cout << "Left reopt failed\n";
+	}
+
+	//do re-opt left
+	p_step = 1e-10; //step to take in direction of eigenvector
+	while (p_step < 1) {
+		Yright = X + p_step * v;
+
+		//perform minimization
+		find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
+           objective_delta_stop_strategy(1e-14), //.be_verbose(), // Stop when the change in rosen() is less than 1e-7
+           [&p](const column_vector& a) {return p.getU(a);}, 
+           [&p](const column_vector& a) {return p.getGrad(a);}, 
+           Yright, -10000);
+
+		//compute the hessian
+		matrix<double> Hright; Hright = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
+		hessMorse(Yright, range, E, N, Hright);
+
+		//eigenvalue decomposition of the hessian
+		eigenvalue_decomposition<matrix<double>> Hdright(Hright); 
+
+		//check for minimum
+		std::vector<int> neg_index;  //indices of negative eigenvalues
+		if (isMin(Hdright, N, neg_index)) {
+			//printf("Escape at step %f\n", p_step);
+			break;
+		}
+		else {
+			p_step *= 10;
+		}
+	}
+
+	if (p_step > 1) {
+		std::cout << "Right reopt failed\n";
+	}
+
+	double d;
+	if (testSame(N, Yleft, Yright, d)) {
+		X = Yleft;
+	}
+	else {
+		std::cout << d << "\n";
+		//abort();
+	}
+
+
+
+
+}
+
 void descent(int N, int num_clusters, double* clusters, int sticky, int potential) {
 	//perform the descent with given parameters 
 
@@ -277,7 +434,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 	double E = E0;                   //energy at arbitrary range
 	double kappa, kappaD;            //kappa and its derivative
 	stickyF(E0, range, 1, 0, kappa, kappaD); //get initial kappa
-	double end = 1;
+	double end = 1.0;
 
 	range = range - STEP;
 	while (range > end) {
@@ -288,7 +445,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 12; c < 13; c++) {
+		for (int c = 0; c < num_clusters; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
@@ -304,24 +461,23 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 			matrix<double> H; H = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
 			hessMorse(X, range, E, N, H);
 
+			//eigenvalue decomposition of the hessian
 			eigenvalue_decomposition<matrix<double>> Hd(H); 
-			auto V = real(Hd.get_v());
-			auto v = colm(V, DIMENSION*N-4);
-			auto e = Hd.get_eigenvalues();
 
-			//std::cout << v << "\n";
-			auto y = H*v;
-			//std::cout << y(9)/v(9) << ' ' << y(10)/v(10) << ' ' << e(DIMENSION*N-4) << "\n";
-
-			std::cout << countNegs(real_eigenvalues(H),N)  << "\n";
-			//std::cout << Hd.get_eigenvalues() << "\n";
+			//check for minimum
+			std::vector<int> neg_index;  //indices of negative eigenvalues
+			if (!isMin(Hd, N, neg_index)) {
+				//not a minimum, do a re-optimization
+				printf("Cluster %d needs to be re-optimized at range %f\n", c, range);
+				reOpt(X, range, E, N, neg_index, p, Hd);
+			}
 
 			//store the new minimum
 			storeCluster(N, X, c, clusters);
 		}
 
 		//output the cluters to a file
-		//printClusters(N, num_clusters, clusters, range, sticky, potential);
+		printClusters(N, num_clusters, clusters, range, sticky, potential);
 
 		//test if same 
 		//double d;
