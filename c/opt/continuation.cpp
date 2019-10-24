@@ -246,7 +246,7 @@ bool isMin(eigenvalue_decomposition<matrix<double>> Hd, int N, std::vector<int>&
 	return true;
 }
 
-void reOpt(column_vector& X, double range, double E, int N, std::vector<int> indices,
+void reOpt(column_vector& X, double range, double E, int N, int potential, std::vector<int> indices,
 					 Parameters p, eigenvalue_decomposition<matrix<double>> Hd) {
 	//re-optimize the cluster that reached a saddle
 
@@ -276,7 +276,12 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 
 		//compute the hessian
 		matrix<double> Hleft; Hleft = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
-		hessMorse(Yleft, range, E, N, Hleft);
+		if (potential == 0) {
+			hessMorse(Yleft, range, E, N, Hleft);
+		}
+		else if (potential == 1) {
+			hessLJ(Yleft, range, E, N, Hleft);
+		}
 
 		//eigenvalue decomposition of the hessian
 		eigenvalue_decomposition<matrix<double>> Hdleft(Hleft); 
@@ -310,7 +315,12 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 
 		//compute the hessian
 		matrix<double> Hright; Hright = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
-		hessMorse(Yright, range, E, N, Hright);
+		if (potential == 0) {
+			hessMorse(Yright, range, E, N, Hright);
+		}
+		else if (potential == 1) {
+			hessLJ(Yright, range, E, N, Hright);
+		}
 
 		//eigenvalue decomposition of the hessian
 		eigenvalue_decomposition<matrix<double>> Hdright(Hright); 
@@ -334,7 +344,7 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 	if (testSame(N, Yleft, Yright, d)) {
 		X = Yleft;
 
-		//std::cout << X << "\n";
+		std::cout << X << "\n";
 	}
 	else {
 		std::cout << d << "\n";
@@ -350,7 +360,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 	double E = E0;                   //energy at arbitrary range
 	double kappa, kappaD;            //kappa and its derivative
 	stickyF(E0, range, 1, 0, kappa, kappaD); //get initial kappa
-	double end = 16.0;
+	double end = 1.0;
 
 	range = range - STEP;
 	while (range > end) {
@@ -361,7 +371,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < 2; c++) {
+		for (int c = 0; c < 1; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
@@ -375,7 +385,12 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 
 			//compute the hessian
 			matrix<double> H; H = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
-			hessMorse(X, range, E, N, H);
+			if (potential == 0) {
+				hessMorse(X, range, E, N, H);
+			}
+			else if (potential == 1) {
+				hessLJ(X, range, E, N, H);
+			}
 
 			//eigenvalue decomposition of the hessian
 			eigenvalue_decomposition<matrix<double>> Hd(H); 
@@ -385,10 +400,10 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 			if (!isMin(Hd, N, neg_index)) {
 				//not a minimum, do a re-optimization
 				printf("Cluster %d needs to be re-optimized at range %f\n", c, range);
-				reOpt(X, range, E, N, neg_index, p, Hd);
+				reOpt(X, range, E, N, potential, neg_index, p, Hd);
 			}
 
-			std::cout << X << "\n";
+			//std::cout << X << "\n";
 
 			//store the new minimum
 			storeCluster(N, X, c, clusters);

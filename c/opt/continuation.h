@@ -33,7 +33,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int potential);
 int countNegs(column_vector eig, int N);
 bool isMin(eigenvalue_decomposition<matrix<double>> Hd, int N, std::vector<int>& indices);
-void reOpt(column_vector& X, double range, double E, int N, std::vector<int> indices,
+void reOpt(column_vector& X, double range, double E, int N, int potential, std::vector<int> indices,
 					 Parameters p, eigenvalue_decomposition<matrix<double>> Hd); 
 
 

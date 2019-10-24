@@ -22,7 +22,7 @@ double ljP(double r, double rho, double E);
 double ljPD(double r, double rho, double E);
 double ljEval(double* particles, double rho, double E, int N);
 void ljGrad(double* particles, double rho, double E, int N, column_vector& g);
-void hessLJ(double* particles, double rho, double E, int N, double* H);
+void hessLJ(column_vector cluster, double rho, double E, int N, matrix<double>& H);
 
 //sticky stuff
 void stickyF(double E, double rho, double beta, double k0, double& f, double& fprime);

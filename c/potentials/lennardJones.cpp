@@ -58,8 +58,66 @@ void ljGrad(double* particles, double rho, double E, int N, column_vector& g) {
   g(0) = 0; g(1) = 0; g(2) = 0; g(4) = 0; g(5) = 0; g(8) = 0;
 }
 
-void hessLJ(double* particles, double rho, double E, int N, double* H) {
-  //compute the Hessian of particles under morse potential
+void hessLJ(column_vector cluster, double rho, double E, int N, matrix<double>& H) {
+  //compute the Hessian of particles under lennard-jones potential
+
+  int entries = DIMENSION*N;
+
+  double* particles = new double[entries];
+  c2p(cluster, particles, N);
+
+  double* Z = new double[DIMENSION];
+
+  for (int i = 0; i < entries; i ++) {
+    if (isDoF(i)) {
+      for (int j = 0; j < entries; j++) {
+        if (isDoF(j)) { //if we get here, compute contribution from this entry
+          //init the sum
+          double S = 0;
+
+          //get the particle of the i index
+          int particle1 = i / DIMENSION; 
+
+          //loop over all other particles
+          for (int particle2 = 0; particle2 < N; particle2++) {
+            if (particle2 != particle1) {
+              //get quantities to use in later expressions
+              double r = euDist(particles, particle1, particle2, N, Z);
+
+              //compute term1
+              double r1 = pow(r, -rho-2) * (1-pow(r,-rho));
+              double T1 = (delta(i,j)-delta(i-DIMENSION*(particle1-particle2),j))*r1;
+              
+              //compute term 2
+              double P2; double P3;
+              if (particle1 == j / DIMENSION) {
+                P2 = -(rho+2)*pow(r,-rho-4) * (cluster(j) - cluster(j - DIMENSION*(particle1-particle2)));
+                P3 = rho * pow(r,-rho-2) * (cluster(j) - cluster(j - DIMENSION*(particle1-particle2)));
+              }
+              else{
+                P2 = 0; P3 = 0;
+                if (particle2 == j / DIMENSION) {
+                  P2 = -(rho+2)*pow(r,-rho-4) * (cluster(j) - cluster(j - DIMENSION*(particle2-particle1)));
+                  P3 = rho * pow(r,-rho-2) * (cluster(j) - cluster(j - DIMENSION*(particle2-particle1)));
+                }
+              }
+              double T2 = (cluster(i)-cluster(i-DIMENSION*(particle1-particle2)))*P2*(1-pow(r,-rho));
+
+              //compute term 3
+              double T3 = (cluster(i)-cluster(i-DIMENSION*(particle1-particle2)))*P3*pow(r,-rho-2);
+            
+              //combine into a total
+              S += T1 + T2 + T3;
+            }
+          }
+          //add entry into matrix 
+          H(i,j) = 2 * E * rho * S;
+        }
+      }
+    }
+  }
+
+  delete []Z; delete []particles;
 
 
 }
