@@ -336,9 +336,10 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 	//get the index of eigenvector with negative eigenvalue
 	int index = indices[0]; 
 
-	//construct the matrix of eigenvectors, grab the one in index
+	//construct the matrix of eigenvectors, grab the one in index, zero out rigid motion dof
 	column_vector V = real(Hd.get_v());
 	column_vector v = colm(V, index);
+	v(0) = 0; v(1) = 0; v(2) = 0; v(4) = 0; v(5) = 0; v(8) = 0;
 
 	//make new trial minima - left and right displacement
 	column_vector Yleft(N*DIMENSION); column_vector Yright(N*DIMENSION); 
@@ -370,7 +371,7 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 			break;
 		}
 		else {
-			p_step *= 10;
+			p_step *= 5;
 		}
 	}
 
@@ -404,7 +405,7 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 			break;
 		}
 		else {
-			p_step *= 10;
+			p_step *= 5;
 		}
 	}
 
@@ -415,6 +416,8 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 	double d;
 	if (testSame(N, Yleft, Yright, d)) {
 		X = Yleft;
+
+		//std::cout << X << "\n";
 	}
 	else {
 		std::cout << d << "\n";
@@ -445,7 +448,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < num_clusters; c++) {
+		for (int c = 0; c < 1; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
