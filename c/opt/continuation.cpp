@@ -201,89 +201,6 @@ void printClusters(int N, int num_clusters, double* clusters, double range,
 	
 }
 
-bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
-	//check if two clusters are the same just by comparing list of particle distances
-
-	//set tolerance for sorted distances
-	double tol = 1e-4;
-
-	//store cluster sin column vectors
-	column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
-	getCluster(N, clusters, c1, cluster1); getCluster(N, clusters, c2, cluster2); 
-
-	//make particle arrays
-	double* particles1 = new double[N*DIMENSION];
-	double* particles2 = new double[N*DIMENSION];
-	c2p(cluster1, particles1, N); c2p(cluster2, particles2, N);
-
-	//make vectors with distances
-	std::vector<double> d1, d2;
-	double* Z = new double[DIMENSION];
-	for (int i = 0; i < N; i++) {
-		for (int j = i+1; j < N; j++) {
-			d1.push_back(euDist(particles1, i, j, N, Z)); 
-			d2.push_back(euDist(particles2, i, j, N, Z)); 
-		}
-	}
-
-	//sort the distance vectors
-	sort(d1.begin(), d1.end()); sort(d2.begin(), d2.end()); 
-
-	//compute summed distance between elements
-	distance = 0;
-	for (int i = 0; i < d1.size(); i++) {
-		distance += abs(d1[i]-d2[i]);
-		//std::cout << d1[i] << ' ' << d2[i] << ' ' << distance << "\n";
-	}
-
-	//free memory
-	delete []particles1; delete []particles2; delete []Z;
-
-	//return if they are the same
-	if (distance < tol) return true;
-	return false;
-
-}
-
-bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
-	//check if two clusters are the same just by comparing list of particle distances
-
-	//set tolerance for sorted distances
-	double tol = 1e-2;
-
-	//make particle arrays
-	double* particles1 = new double[N*DIMENSION];
-	double* particles2 = new double[N*DIMENSION];
-	c2p(c1, particles1, N); c2p(c2, particles2, N);
-
-	//make vectors with distances
-	std::vector<double> d1, d2;
-	double* Z = new double[DIMENSION];
-	for (int i = 0; i < N; i++) {
-		for (int j = i+1; j < N; j++) {
-			d1.push_back(euDist(particles1, i, j, N, Z)); 
-			d2.push_back(euDist(particles2, i, j, N, Z)); 
-		}
-	}
-
-	//sort the distance vectors
-	sort(d1.begin(), d1.end()); sort(d2.begin(), d2.end()); 
-
-	//compute summed distance between elements
-	distance = 0;
-	for (int i = 0; i < d1.size(); i++) {
-		distance += abs(d1[i]-d2[i]);
-		//std::cout << d1[i] << ' ' << d2[i] << ' ' << distance << "\n";
-	}
-
-	//free memory
-	delete []particles1; delete []particles2; delete []Z;
-
-	//return if they are the same
-	if (distance < tol) return true;
-	return false;
-
-}
 
 
 /****************************************************************************/
@@ -423,10 +340,6 @@ void reOpt(column_vector& X, double range, double E, int N, std::vector<int> ind
 		std::cout << d << "\n";
 		//abort();
 	}
-
-
-
-
 }
 
 void descent(int N, int num_clusters, double* clusters, int sticky, int potential) {
@@ -437,7 +350,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 	double E = E0;                   //energy at arbitrary range
 	double kappa, kappaD;            //kappa and its derivative
 	stickyF(E0, range, 1, 0, kappa, kappaD); //get initial kappa
-	double end = 1.0;
+	double end = 16.0;
 
 	range = range - STEP;
 	while (range > end) {
@@ -448,7 +361,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < 1; c++) {
+		for (int c = 0; c < 2; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
@@ -474,6 +387,8 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 				printf("Cluster %d needs to be re-optimized at range %f\n", c, range);
 				reOpt(X, range, E, N, neg_index, p, Hd);
 			}
+
+			std::cout << X << "\n";
 
 			//store the new minimum
 			storeCluster(N, X, c, clusters);
@@ -553,35 +468,6 @@ void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int 
 	
 }
 
-
-void testCV(double* clusters) {
-	column_vector X(18); getCluster(6,clusters, 1, X);
-	column_vector Y(18); getCluster(6,clusters, 0, Y);
-
-	Parameters p = Parameters(6, 0, 30, 1);
-
-	//std::cout << derivative([&p](const column_vector& a) {return p.getU(a);},1e-8)(X); 
-	//std::cout << p.getGrad(X);
-	//std::cout << (p.getU(Y)-p.getU(X))/1e-4 << "\n";
-	//std::cout << (p.getU(Y)) << "\n";
-	std::cout << X << "\n";
-	std::cout << Y << "\n";
-
-	find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
-             objective_delta_stop_strategy(1e-13).be_verbose(), // Stop when the change in rosen() is less than 1e-7
-             [&p](const column_vector& a) {return p.getU(a);}, 
-             [&p](const column_vector& a) {return p.getGrad(a);}, 
-             X, -10000);
-	find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
-             objective_delta_stop_strategy(1e-13).be_verbose(), // Stop when the change in rosen() is less than 1e-7
-             [&p](const column_vector& a) {return p.getU(a);}, 
-             [&p](const column_vector& a) {return p.getGrad(a);}, 
-             Y, -10000);
-    // Once the function ends the starting_point vector will contain the optimum point 
-    // of (1,1).
-    std::cout  << X << "\n";
-    std::cout  << Y << "\n";
-}
 
 /****************************************************************************/
 
@@ -709,6 +595,127 @@ double rMin(int N, int cNum, double* clusters, double rho) {
 
 	//return rmin
 	return rmin;
+}
+
+double computeClusterMetric(int N, column_vector c1, column_vector c2, int which) {
+	//compute a metric between clusters - which specifies the metric
+
+	double distance;
+
+	if (which == 0) {
+		//L1 norm of sorted particle distances
+
+		//make particle arrays
+		double* particles1 = new double[N*DIMENSION];
+		double* particles2 = new double[N*DIMENSION];
+		c2p(c1, particles1, N); c2p(c2, particles2, N);
+
+		//make vectors with distances
+		std::vector<double> d1, d2;
+		double* Z = new double[DIMENSION];
+		for (int i = 0; i < N; i++) {
+			for (int j = i+1; j < N; j++) {
+				d1.push_back(euDist(particles1, i, j, N, Z)); 
+				d2.push_back(euDist(particles2, i, j, N, Z)); 
+			}
+		}
+
+		//sort the distance vectors
+		sort(d1.begin(), d1.end()); sort(d2.begin(), d2.end()); 
+
+		//compute summed distance between elements
+		distance = 0;
+		for (int i = 0; i < d1.size(); i++) {
+			distance += abs(d1[i]-d2[i]);
+			//std::cout << d1[i] << ' ' << d2[i] << ' ' << distance << "\n";
+		}
+
+		//free memory
+		delete []particles1; delete []particles2; delete []Z;
+	}
+	else if (which == 1) {
+		//rmsd ?
+
+	}
+
+
+	return distance;
+}
+
+bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
+	//check if two clusters are the same just by comparing list of particle distances
+	//for merge testing
+
+	//set tolerance for sorted distances
+	double tol = 1e-4;
+
+	//store cluster sin column vectors
+	column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
+	getCluster(N, clusters, c1, cluster1); getCluster(N, clusters, c2, cluster2); 
+
+	int metric = 0;  //L1 norm of sorted particle distances
+
+	//get the distance between clusters in some metric
+	distance = computeClusterMetric(N, cluster1, cluster2, metric); 
+
+	//return if they are the same
+	if (distance < tol) return true;
+	return false;
+
+}
+
+bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
+	//check if two clusters are the same just by comparing list of particle distances
+	//for re-opt check
+
+	//set tolerance for sorted distances
+	double tol = 1e-2;  //smaller tolerance here b/c close to 0 eigenvalue
+
+	int metric = 0;  //L1 norm of sorted particle distances
+
+	//get the distance between clusters in some metric
+	distance = computeClusterMetric(N, c1, c2, metric); 
+
+	//return if they are the same
+	if (distance < tol) return true;
+	return false;
+
+}
+
+
+/****************************************************************************/
+
+/* Testing area */
+
+/****************************************************************************/
+
+void testCV(double* clusters) {
+	column_vector X(18); getCluster(6,clusters, 1, X);
+	column_vector Y(18); getCluster(6,clusters, 0, Y);
+
+	Parameters p = Parameters(6, 0, 30, 1);
+
+	//std::cout << derivative([&p](const column_vector& a) {return p.getU(a);},1e-8)(X); 
+	//std::cout << p.getGrad(X);
+	//std::cout << (p.getU(Y)-p.getU(X))/1e-4 << "\n";
+	//std::cout << (p.getU(Y)) << "\n";
+	std::cout << X << "\n";
+	std::cout << Y << "\n";
+
+	find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
+             objective_delta_stop_strategy(1e-13).be_verbose(), // Stop when the change in rosen() is less than 1e-7
+             [&p](const column_vector& a) {return p.getU(a);}, 
+             [&p](const column_vector& a) {return p.getGrad(a);}, 
+             X, -10000);
+	find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
+             objective_delta_stop_strategy(1e-13).be_verbose(), // Stop when the change in rosen() is less than 1e-7
+             [&p](const column_vector& a) {return p.getU(a);}, 
+             [&p](const column_vector& a) {return p.getGrad(a);}, 
+             Y, -10000);
+    // Once the function ends the starting_point vector will contain the optimum point 
+    // of (1,1).
+    std::cout  << X << "\n";
+    std::cout  << Y << "\n";
 }
 
 
