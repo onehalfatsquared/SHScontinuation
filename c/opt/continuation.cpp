@@ -649,7 +649,7 @@ double computeClusterMetric(int N, column_vector c1, column_vector c2, int which
 		delete []particles1; delete []particles2; delete []Z;
 	}
 	else if (which == 1) {
-		//rmsd ?
+		//rmsd 
 
 	}
 
@@ -697,6 +697,73 @@ bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
 
 }
 
+double RMSD(int N, double* particles1, double* particles2, matrix<double>& R) {
+	//get the root mean square deviation between the particles
+
+	double rmsd;
+
+
+
+
+	return rmsd;
+
+}
+
+void findRot(int N, double* particles1, double* particles2, matrix<double>& R) {
+	//compute the optimal rotation matrix of c1 onto c2 using kabsch algo
+
+	//store the particle arrays as matrix
+	matrix<double> p1(N,DIMENSION), p2(N,DIMENSION);
+	for (int i = 0; i < N*DIMENSION; i++) {
+		p1(i/DIMENSION, i%DIMENSION) = particles1[i];
+		p2(i/DIMENSION, i%DIMENSION) = particles2[i];
+	}
+
+	//compute the covariance matrix
+	matrix<double> A(DIMENSION,DIMENSION);
+	A = trans(p1)*p2;
+
+	//compute the svd
+	matrix<double> V,S,W;
+	svd(A,V,S,W);
+
+	//get rotation matrix
+	R = W*trans(V);
+}
+
+void realign(int N, double* particles1, double* particles2) {
+	//solve cost minimization problem with pairwise distance matrix
+
+	//construct the cost matrix - dlib needs ints
+	matrix<int> C(N,N);
+	double* Z = new double[DIMENSION];
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			int r = 100*euDist(particles1, particles2, i, j, N, Z);
+			C(i,j) = -r;
+		}
+	}
+
+	//solve the assignment problem with dlib
+	std::vector<long> assignment = max_cost_assignment(C);
+
+	//create a temp array with particles1 positions
+	double* temp = new double[N*DIMENSION];
+	for (int i = 0; i < N*DIMENSION; i++) {
+		temp[i] = particles1[i];
+	}
+
+	//swap the order in particles1 according to lignment vector
+	for (int i = 0; i < N; i++) {
+		int newIndex = assignment[i];
+		for (int j = 0; j < DIMENSION; j++) {
+			particles1[N*newIndex+j] = temp[N*i+j];
+		}
+	}
+
+	//free memory 
+	delete []Z; delete []temp;
+}
 
 /****************************************************************************/
 
@@ -705,11 +772,15 @@ bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
 /****************************************************************************/
 
 void testCV(double* clusters) {
+
+	//test the get cluster functions
 	column_vector X(18); getCluster(6,clusters, 1, X);
 	column_vector Y(18); getCluster(6,clusters, 0, Y);
 
+	//set a parameter set
 	Parameters p = Parameters(6, 0, 30, 1);
 
+	//test parameter functions
 	//std::cout << derivative([&p](const column_vector& a) {return p.getU(a);},1e-8)(X); 
 	//std::cout << p.getGrad(X);
 	//std::cout << (p.getU(Y)-p.getU(X))/1e-4 << "\n";
@@ -717,6 +788,7 @@ void testCV(double* clusters) {
 	std::cout << X << "\n";
 	std::cout << Y << "\n";
 
+	//test the optimization schemes
 	find_min(bfgs_search_strategy(),  // Use BFGS search algorithm
              objective_delta_stop_strategy(1e-13).be_verbose(), // Stop when the change in rosen() is less than 1e-7
              [&p](const column_vector& a) {return p.getU(a);}, 
@@ -731,6 +803,33 @@ void testCV(double* clusters) {
     // of (1,1).
     std::cout  << X << "\n";
     std::cout  << Y << "\n";
+
+    //test the kabsch algo
+    double* p1 = new double[6*3];
+    double* p2 = new double[6*3];
+
+    c2p(X, p1, 6); c2p(Y,p2,6);
+    matrix<double> R(3,3);
+    findRot(6, p1, p2, R);
+    std::cout << R << "\n";
+
+    //test the re-alignment
+    double* t1 = new double[3*3];
+    double* t2 = new double[3*3];
+
+    t1[0] = 1; t1[1] = 2; t1[2] = 3;
+    t1[3] = 1; t1[4] = 4; t1[5] = 6;
+    t1[6] = 1; t1[7] = 6; t1[8] = 9;
+
+    t2[0] = 1; t2[1] = 3; t2[2] = 2;
+    t2[3] = 1; t2[4] = 6.5; t2[5] = 4;
+    t2[6] = 1; t2[7] = 9; t2[8] = 6;
+
+    realign(3, t1, t2);
+    std::cout << t1[4] << ' ' << t2[4] << "\n";
+
+
+    delete []p1; delete []p2; delete []t1; delete []t2;
 }
 
 

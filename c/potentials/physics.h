@@ -31,3 +31,4 @@ double stickyNewton(double E, double rho, double k0, double beta);
 //particle stuff
 void c2p(column_vector cluster, double* particles, int N);
 double euDist(double* particles, int i, int j, int N, double* Z);
+double euDist(double* particles1, double* particles2, int i, int j, int N, double* Z);

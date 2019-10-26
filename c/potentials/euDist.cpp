@@ -54,4 +54,27 @@ double euDist(double* particles, int i, int j, int N, double* Z) {
   return R;
 }
 
+double euDist(double* particles1, double* particles2, int i, int j, int N, double* Z) {
+	//computes euclidean distance between particles i and j in two sets
+  Z[0] = particles1[i]-particles2[j];
+  Z[1] = particles1[N+i]-particles2[N+j];
+#if (DIMENSION == 3)
+	Z[2] = particles1[2*N+i]-particles2[2*N+j];
+#endif
+
+
+  double R = Z[0]*Z[0]+Z[1]*Z[1];
+#if (DIMENSION == 3)
+  R += Z[2]*Z[2];
+#endif
+
+  R = sqrt(R);
+  Z[0] /= R; Z[1] /= R;
+#if (DIMENSION == 3)
+  Z[2] /= R;
+#endif
+
+  return R;
+}
+
 
