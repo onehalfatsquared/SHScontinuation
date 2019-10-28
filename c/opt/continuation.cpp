@@ -459,8 +459,30 @@ void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int 
              [&p](const column_vector& a) {return p.getGrad(a);}, 
              X, -10000);
 
+			//compute the hessian
+			matrix<double> H; H = zeros_matrix<double>(DIMENSION*N,DIMENSION*N);
+			if (potential == 0) {
+				hessMorse(X, range, E, N, H);
+			}
+			else if (potential == 1) {
+				hessLJ(X, range, E, N, H);
+			}
+
+			//eigenvalue decomposition of the hessian
+			eigenvalue_decomposition<matrix<double>> Hd(H); 
+
+			//check for minimum
+			std::vector<int> neg_index;  //indices of negative eigenvalues
+			if (!isMin(Hd, N, neg_index)) {
+				//not a minimum, do a re-optimization
+				printf("Cluster %d needs to be re-optimized at range %f\n", c, range);
+				reOpt(X, range, E, N, potential, neg_index, p, Hd);
+			}
+			
 			//store the new minimum
 			storeCluster(N, X, c, clusters);
+
+
 		}
 
 		//output the cluters to a file
