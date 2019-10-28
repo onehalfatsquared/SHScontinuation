@@ -9,6 +9,8 @@ typedef matrix<double,0,1> column_vector;
 //general stuff
 bool isDoF(int i);
 int delta(int i, int j);
+int toIndex(int r, int c, long m);
+void index2ij(int index, int N, int& i, int& j);
 
 //morse stuff
 double morseP(double r, double rho, double E);

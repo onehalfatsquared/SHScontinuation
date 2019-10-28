@@ -26,6 +26,9 @@ class Parameters {
 
 //test functions
 void testCV(double* clusters);
+void testRot();
+void testTestSame();
+void testSymmetries();
 
 //continuation/descent functions
 double getEnergy0(int sticky);
@@ -54,4 +57,12 @@ void rMinFill(int N, int num_clusters, double* clusters, double* rMins, double r
 bool testSame(int N, double* clusters, int c1, int c2, double& distance); 
 bool testSame(int N, column_vector c1, column_vector c2, double& distance);
 double computeClusterMetric(int N, column_vector c1, column_vector c2, int which);
+double RMSD(int N, matrix<double> particles1, matrix<double> particles2);
+void findRot(int N, matrix<double> particles1, matrix<double> particles2, matrix<double>& R);
+void realign(int N, matrix<double>& particles1, matrix<double> particles2);
+void fillSymmetries(int N, matrix<double> particles, matrix<double>* symmetries);
+void makeSwapVect(std::vector<std::vector<int>>& swaps);
+void subtractCOM(int N, matrix<double>& particles); 
+void getInteriaTensor(int N, matrix<double> particles, matrix<double>& inertia);
+
 

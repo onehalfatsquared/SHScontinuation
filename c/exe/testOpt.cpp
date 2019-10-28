@@ -8,7 +8,10 @@ int main() {
 
 	double* clusters = new double[2*DIMENSION*6];
 	getSHS(6,2,clusters);
-	testCV(clusters);
+	//testCV(clusters);
+	//testRot();
+	//testTestSame();
+	testSymmetries();
 
 	delete []clusters;
 

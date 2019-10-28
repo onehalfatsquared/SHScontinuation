@@ -254,7 +254,7 @@ void reOpt(column_vector& X, double range, double E, int N, int potential, std::
 	int index = indices[0]; 
 
 	//construct the matrix of eigenvectors, grab the one in index, zero out rigid motion dof
-	column_vector V = real(Hd.get_v());
+	auto V = real(Hd.get_v());
 	column_vector v = colm(V, index);
 	v(0) = 0; v(1) = 0; v(2) = 0; v(4) = 0; v(5) = 0; v(8) = 0;
 
@@ -371,7 +371,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < 1; c++) {
+		for (int c = 0; c < num_clusters; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
@@ -615,7 +615,7 @@ double rMin(int N, int cNum, double* clusters, double rho) {
 double computeClusterMetric(int N, column_vector c1, column_vector c2, int which) {
 	//compute a metric between clusters - which specifies the metric
 
-	double distance;
+	double distance; double tol = 1e-6;
 
 	if (which == 0) {
 		//L1 norm of sorted particle distances
@@ -649,7 +649,74 @@ double computeClusterMetric(int N, column_vector c1, column_vector c2, int which
 		delete []particles1; delete []particles2; delete []Z;
 	}
 	else if (which == 1) {
-		//rmsd 
+		//rmsd minimized over rotation and perms
+
+		//make particle arrays
+		double* particles1 = new double[N*DIMENSION];
+		double* particles2 = new double[N*DIMENSION];
+		c2p(c1, particles1, N); c2p(c2, particles2, N);
+
+		//store particle arrays as matrix
+		matrix<double> p1(N,DIMENSION), p2(N,DIMENSION);
+		for (int i = 0; i < N; i++) {
+			for (int j = 0; j < DIMENSION; j++) {
+				p1(i,j) = particles1[toIndex(i,j,N)];
+				p2(i,j) = particles2[toIndex(i,j,N)];
+			}
+		}
+
+		//subtract the center of mass
+		subtractCOM(N, p1); subtractCOM(N, p2);
+
+		//rotate each to principal axes
+		matrix<double> inertia1(3,3), inertia2(3,3);
+		getInteriaTensor(N, p1, inertia1); getInteriaTensor(N, p2, inertia2); 
+		eigenvalue_decomposition<matrix<double>> i1(inertia1); 
+		eigenvalue_decomposition<matrix<double>> i2(inertia2); 
+		matrix<double> v1(3,3); matrix<double> v2(3,3);
+		v1 = real(i1.get_v()); v2 = real(i2.get_v()); 
+		p1 = p1 * v1; p2 = p2 * v2;
+
+		//get all the symmetries of particles1
+		matrix<double>* symmetries = new matrix<double>[48];
+		fillSymmetries(N, p1, symmetries); 
+
+		//declare storage for min rmsd cluster
+		int minIndex; double minRMSD = 1e10;
+
+		//loop over all the symmetries to get the minimum rmsd
+		for (int perm = 0; perm < 48; perm++) {
+
+			//get an entry from the symmetries array
+			matrix<double> attempt = symmetries[perm];
+
+			//compute the re-alignment to get optimal permutation
+			realign(N, attempt, p2);
+
+			//get the rotation matrix to minimize rmsd
+			matrix<double> R(DIMENSION,DIMENSION);
+			findRot(N, attempt, p2, R);
+
+			//compute the rmsd
+			distance = RMSD(N, attempt*trans(R), p2);
+
+			//check if smaller than min
+			if (distance < minRMSD) {
+				minRMSD = distance; 
+				minIndex = perm;
+			}
+
+			//if the rmsd is very small, break
+			if (distance < tol) {
+				break;
+			}
+
+		}
+
+		distance = minRMSD;
+
+		//free memory
+		delete []particles1; delete []particles2; delete []symmetries;
 
 	}
 
@@ -664,14 +731,17 @@ bool testSame(int N, double* clusters, int c1, int c2, double& distance) {
 	//set tolerance for sorted distances
 	double tol = 1e-4;
 
-	//store cluster sin column vectors
+	//store clusters in column vectors
 	column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
 	getCluster(N, clusters, c1, cluster1); getCluster(N, clusters, c2, cluster2); 
 
-	int metric = 0;  //L1 norm of sorted particle distances
+	int metric = 0;  //L1 norm of sorted particle distances - faster
+	//int metric = 1;  //rmsd between clusters - slower
 
 	//get the distance between clusters in some metric
 	distance = computeClusterMetric(N, cluster1, cluster2, metric); 
+
+	//std::cout << "Distaance is " << distance << "\n";
 
 	//return if they are the same
 	if (distance < tol) return true;
@@ -697,72 +767,185 @@ bool testSame(int N, column_vector c1, column_vector c2, double& distance) {
 
 }
 
-double RMSD(int N, double* particles1, double* particles2, matrix<double>& R) {
+double RMSD(int N, matrix<double> particles1, matrix<double> particles2) {
 	//get the root mean square deviation between the particles
 
-	double rmsd;
+	double rmsd = 0; 
 
+	//get the sum of the square of the distances between each coordinate
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < DIMENSION; j++) {
+			rmsd += (particles1(i,j) - particles2(i,j)) * (particles1(i,j) - particles2(i,j)); 
+		}
+	}
 
-
-
+	//normalize by number of particles and take sqrt
+	rmsd /= N;
+	rmsd = sqrt(rmsd);
 	return rmsd;
-
 }
 
-void findRot(int N, double* particles1, double* particles2, matrix<double>& R) {
+void findRot(int N, matrix<double> particles1, matrix<double> particles2, matrix<double>& R) {
 	//compute the optimal rotation matrix of c1 onto c2 using kabsch algo
-
-	//store the particle arrays as matrix
-	matrix<double> p1(N,DIMENSION), p2(N,DIMENSION);
-	for (int i = 0; i < N*DIMENSION; i++) {
-		p1(i/DIMENSION, i%DIMENSION) = particles1[i];
-		p2(i/DIMENSION, i%DIMENSION) = particles2[i];
-	}
 
 	//compute the covariance matrix
 	matrix<double> A(DIMENSION,DIMENSION);
-	A = trans(p1)*p2;
+	A = trans(particles1)*particles2;
 
 	//compute the svd
 	matrix<double> V,S,W;
 	svd(A,V,S,W);
+	//std::cout << V << "\n" << S << "\n" << W << "\n";
 
 	//get rotation matrix
 	R = W*trans(V);
+	//std::cout << R << "\n";
 }
 
-void realign(int N, double* particles1, double* particles2) {
+void realign(int N, matrix<double>& particles1, matrix<double> particles2) {
 	//solve cost minimization problem with pairwise distance matrix
 
 	//construct the cost matrix - dlib needs ints
-	matrix<int> C(N,N);
-	double* Z = new double[DIMENSION];
+	matrix<int> C(N,N); column_vector diff(N);
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N; j++) {
-			int r = 100*euDist(particles1, particles2, i, j, N, Z);
+			diff = trans(rowm(particles1,i)) - trans(rowm(particles2,j));
+			int r = 100 * trans(diff)*diff;
 			C(i,j) = -r;
 		}
 	}
+
+	//std::cout << C << "\n";
 
 	//solve the assignment problem with dlib
 	std::vector<long> assignment = max_cost_assignment(C);
 
 	//create a temp array with particles1 positions
-	double* temp = new double[N*DIMENSION];
-	for (int i = 0; i < N*DIMENSION; i++) {
-		temp[i] = particles1[i];
+	matrix<double> temp(N,DIMENSION); 
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < DIMENSION; j++) {
+			temp(i,j) = particles1(i,j);
+		}
 	}
+		
 
-	//swap the order in particles1 according to lignment vector
+	//swap the order in particles1 according to alignment vector
 	for (int i = 0; i < N; i++) {
 		int newIndex = assignment[i];
+		//std::cout << newIndex << "\n";
 		for (int j = 0; j < DIMENSION; j++) {
-			particles1[N*newIndex+j] = temp[N*i+j];
+			particles1(newIndex,j) = temp(i,j);
+			//std::cout << particles1[toIndex(newIndex,j,N)] << "\n";
 		}
 	}
 
-	//free memory 
-	delete []Z; delete []temp;
+}
+
+void fillSymmetries(int N, matrix<double> particles, matrix<double>* symmetries) {
+	//contruct all 48 symmetries corresponding to axis swaps and reflections
+	// this assumes 3d
+
+	//make temp matrix. extract the columns of particles.
+	int count = 0; matrix<double> temp(N,3);
+	column_vector A(N), B(N), C(N);
+	A = colm(particles,0); B = colm(particles,1); C = colm(particles,2); 
+
+	//make the swap vector
+	std::vector<std::vector<int>> swaps; makeSwapVect(swaps);
+
+	//loop over all swaps and make the entries into symmetries
+	for (int swap = 0; swap < swaps.size(); swap++) {
+		std::vector<int> order = swaps[swap];
+
+		//for this ordering, construct all 8 reflections
+		for (int x = 0; x < 2; x++) { //first get all the signs of each coordinate
+			int sign_x = 2*x-1;
+			for (int y = 0; y < 2; y++) {
+				int sign_y = 2*y-1;
+				for (int z = 0; z < 2; z++) {
+					int sign_z = 2*z-1; 
+
+					//loop over the order of cols A B and C
+					for (int column = 0; column < 3; column++) {
+						int which_col = order[column];
+						if (which_col == 0) {
+							set_colm(temp, column) = A*sign_x;
+						}
+						if (which_col == 1) {
+							set_colm(temp, column) = B*sign_y;
+						}
+						if (which_col == 2) {
+							set_colm(temp, column) = C*sign_z;
+						}
+					}
+
+					//here temp matrix is constructed, add to symmetries
+					symmetries[count] = temp;
+					count++;
+				}
+			}
+		}
+	}
+
+}
+
+void makeSwapVect(std::vector<std::vector<int>>& swaps) {
+	//make all 6 possible swap vectors
+	std::vector<int> ex_swap;
+	ex_swap.push_back(0); ex_swap.push_back(1); ex_swap.push_back(2); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+	ex_swap.push_back(0); ex_swap.push_back(2); ex_swap.push_back(1); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+	ex_swap.push_back(1); ex_swap.push_back(0); ex_swap.push_back(2); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+	ex_swap.push_back(1); ex_swap.push_back(2); ex_swap.push_back(0); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+	ex_swap.push_back(2); ex_swap.push_back(0); ex_swap.push_back(1); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+	ex_swap.push_back(2); ex_swap.push_back(1); ex_swap.push_back(0); 
+	swaps.push_back(ex_swap); ex_swap.clear();
+}
+
+void subtractCOM(int N, matrix<double>& particles) {
+	//subtract the center of mass from particles
+	//assumes 3d
+
+	int count = 0; matrix<double> temp(N,3);
+	column_vector A(N), B(N), C(N);
+	A = colm(particles,0); B = colm(particles,1); C = colm(particles,2); 
+
+	double mA = 0; double mB = 0; double mC = 0;
+	for (int entry = 0; entry < N; entry++) {
+		mA += A(entry); mB += B(entry); mC += C(entry);
+	}
+	mA /= N; mB /= N; mC /= N;
+
+	set_colm(particles,0) = A-mA;
+	set_colm(particles,1) = B-mB;
+	set_colm(particles,2) = C-mC;
+}
+
+void getInteriaTensor(int N, matrix<double> particles, matrix<double>& inertia) {
+	//compute the moment of inertia tensor for the particle system
+	//assumes 3d
+
+	double xx, yy, zz, xy, xz, yz; 
+	xx = yy = zz = xy = xz = yz = 0;
+
+	for (int i = 0; i < N; i++) {
+		matrix<double> p(1,3); p = rowm(particles,i);
+		xx += p(1)*p(1) + p(2)*p(2);
+		yy += p(0)*p(0) + p(2)*p(2);
+		zz += p(0)*p(0) + p(1)*p(1);
+		xy -= p(0)*p(1);
+		yz -= p(1)*p(2);
+		xz -= p(0)*p(2);
+	}
+
+	inertia = xx, xy, xz,
+						xy, yy, yz, 
+						xz, yz, zz;
+
 }
 
 /****************************************************************************/
@@ -799,37 +982,169 @@ void testCV(double* clusters) {
              [&p](const column_vector& a) {return p.getU(a);}, 
              [&p](const column_vector& a) {return p.getGrad(a);}, 
              Y, -10000);
-    // Once the function ends the starting_point vector will contain the optimum point 
-    // of (1,1).
-    std::cout  << X << "\n";
-    std::cout  << Y << "\n";
+    
 
-    //test the kabsch algo
-    double* p1 = new double[6*3];
-    double* p2 = new double[6*3];
+  std::cout  << X << "\n";
+  std::cout  << Y << "\n";
 
-    c2p(X, p1, 6); c2p(Y,p2,6);
-    matrix<double> R(3,3);
-    findRot(6, p1, p2, R);
-    std::cout << R << "\n";
+  //test the re-alignment
+  matrix<double> t1(3,3);
+  matrix<double> t2(3,3);
 
-    //test the re-alignment
-    double* t1 = new double[3*3];
-    double* t2 = new double[3*3];
+  t1 = 1, 1, 1,
+  		 2, 4, 6, 
+  		 3, 6, 9;
 
-    t1[0] = 1; t1[1] = 2; t1[2] = 3;
-    t1[3] = 1; t1[4] = 4; t1[5] = 6;
-    t1[6] = 1; t1[7] = 6; t1[8] = 9;
-
-    t2[0] = 1; t2[1] = 3; t2[2] = 2;
-    t2[3] = 1; t2[4] = 6.5; t2[5] = 4;
-    t2[6] = 1; t2[7] = 9; t2[8] = 6;
-
-    realign(3, t1, t2);
-    std::cout << t1[4] << ' ' << t2[4] << "\n";
+  t2 = 1, 1, 1,
+  		 3, 6.5, 9, 
+  		 2, 4, 6;
 
 
-    delete []p1; delete []p2; delete []t1; delete []t2;
+  realign(3, t1, t2);
+  std::cout << t1(2,2) << ' ' << t2(2,2) << "\n";
+
+}
+
+void testRot() {
+	//test findRot
+
+	//test the rotation and testSame
+	double* testClusters = new double[6*3*2];
+	getFinite(6, 0, 0, 1, testClusters); 
+	column_vector X(18); column_vector Y(18);
+	getCluster(6, testClusters, 1, X);
+	getCluster(6, testClusters, 0, Y);
+	std::cout << X << Y << "\n";
+
+	//make particle arrays
+	double* particles1 = new double[6*DIMENSION];
+	double* particles2 = new double[6*DIMENSION];
+	c2p(X, particles1, 6); c2p(Y, particles2, 6);
+	//store particle arrays as matrix
+	matrix<double> p1(6,DIMENSION), p2(6,DIMENSION);
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < DIMENSION; j++) {
+			p1(i,j) = particles1[toIndex(i,j,6)];
+			p2(i,j) = particles2[toIndex(i,j,6)];
+		}
+	}
+	subtractCOM(6, p1); subtractCOM(6, p2); 
+	std::cout << p1 << "\n";
+
+	//apply a rotation to p1
+	matrix<double> R(3,3);
+	R = 0, -1, 0,
+		  1, 0, 0,
+		  0, 0, 1;
+	matrix<double> pR = p1*trans(R);
+	std::cout << pR << "\n";
+	matrix<double> R2(3,3);
+	findRot(6, p1, pR, R2);
+	std::cout << R2 << "\n";
+	std::cout << p1*trans(R2) << "\n";
+
+
+	delete []testClusters; delete []particles1; delete []particles2;
+}
+
+void testTestSame() {
+	//test if the testSame works
+
+	double* testClusters = new double[6*3*2];
+	getFinite(6, 0, 0, 7, testClusters); 
+	column_vector X(18); column_vector Y(18);
+	getCluster(6, testClusters, 1, X);
+	getCluster(6, testClusters, 0, Y);
+	std::cout << X << Y << "\n";
+
+	//make particle arrays
+	double* particles1 = new double[6*DIMENSION];
+	double* particles2 = new double[6*DIMENSION];
+	c2p(X, particles1, 6); c2p(Y, particles2, 6);
+	//store particle arrays as matrix
+	matrix<double> p1(6,DIMENSION), p2(6,DIMENSION);
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < DIMENSION; j++) {
+			p1(i,j) = particles1[toIndex(i,j,6)];
+			p2(i,j) = particles2[toIndex(i,j,6)];
+		}
+	}
+	std::cout << p1 << "\n" << p2 << "\n";
+	subtractCOM(6, p1); subtractCOM(6, p2); 
+	std::cout << p1 << "\n" << p2 << "\n";
+	matrix<double> inertia1(3,3), inertia2(3,3);
+	getInteriaTensor(6, p1, inertia1); getInteriaTensor(6, p2, inertia2); 
+	eigenvalue_decomposition<matrix<double>> i1(inertia1); 
+	eigenvalue_decomposition<matrix<double>> i2(inertia2); 
+	matrix<double> v1(3,3); matrix<double> v2(3,3);
+	v1 = real(i1.get_v()); v2 = real(i2.get_v()); 
+	p1 = p1 * v1; p2 = p2 * v2;
+	std::cout << p1 << "\n" << p2 << "\n";
+
+	//do reallign
+	realign(6, p1, p2);
+	std::cout << p1 << "\n" << p2 << "\n";
+
+	//find rotation
+	//get the rotation matrix to minimize rmsd
+	matrix<double> R(DIMENSION,DIMENSION);
+	findRot(6, p1, p2, R);
+	matrix<double> pR = p1*trans(R);
+	std::cout << pR << "\n" << p2 << "\n";
+
+	//compute the rmsd
+	double d = RMSD(6, pR, p2);
+	std::cout << d << "\n";
+
+	//free memory
+	delete []testClusters; delete []particles1; delete []particles2;
+
+}
+
+void testSymmetries() {
+	//test if the syymetries get outputted correctly
+
+	double* testClusters = new double[6*3*2];
+	getFinite(6, 0, 0, 7, testClusters); 
+	column_vector X(18); column_vector Y(18);
+	getCluster(6, testClusters, 1, X);
+	getCluster(6, testClusters, 0, Y);
+	std::cout << X << Y << "\n";
+
+	//make particle arrays
+	double* particles1 = new double[6*DIMENSION];
+	double* particles2 = new double[6*DIMENSION];
+	c2p(X, particles1, 6); c2p(Y, particles2, 6);
+	//store particle arrays as matrix
+	matrix<double> p1(6,DIMENSION), p2(6,DIMENSION);
+	for (int i = 0; i < 6; i++) {
+		for (int j = 0; j < DIMENSION; j++) {
+			p1(i,j) = particles1[toIndex(i,j,6)];
+			p2(i,j) = particles2[toIndex(i,j,6)];
+		}
+	}
+	std::cout << p1 << "\n" << p2 << "\n";
+	subtractCOM(6, p1); subtractCOM(6, p2); 
+	std::cout << p1 << "\n" << p2 << "\n";
+	matrix<double> inertia1(3,3), inertia2(3,3);
+	getInteriaTensor(6, p1, inertia1); getInteriaTensor(6, p2, inertia2); 
+	eigenvalue_decomposition<matrix<double>> i1(inertia1); 
+	eigenvalue_decomposition<matrix<double>> i2(inertia2); 
+	matrix<double> v1(3,3); matrix<double> v2(3,3);
+	v1 = real(i1.get_v()); v2 = real(i2.get_v()); 
+	p1 = p1 * v1; p2 = p2 * v2;
+	std::cout << p1 << "\n" << p2 << "\n";
+
+	matrix<double>* symmetries = new matrix<double>[48];
+	fillSymmetries(6, p1, symmetries); 
+
+	std::cout << symmetries[0] << "\n";
+	std::cout << symmetries[1] << "\n";
+
+	//free memory
+	delete []testClusters; delete []particles1; delete []particles2;
+	delete []symmetries;
+
 }
 
 

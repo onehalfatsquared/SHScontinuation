@@ -30,6 +30,17 @@ void c2p(column_vector cluster, double* particles, int N) {
 
 }
 
+int toIndex(int r, int c, long m) {
+  //map row and column number into index in 1d array. column indexed
+  return m*c+r;
+}
+
+void index2ij(int index, int N, int& i, int& j) {
+  // map a row index 1-d array into (i,j) 
+  i = index % N;
+  j = index / N;
+}
+
 
 double euDist(double* particles, int i, int j, int N, double* Z) {
 	//computes euclidean distance between particles i and j
