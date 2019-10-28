@@ -29,6 +29,7 @@ void testCV(double* clusters);
 void testRot();
 void testTestSame();
 void testSymmetries();
+void testLJ();
 
 //continuation/descent functions
 double getEnergy0(int sticky);

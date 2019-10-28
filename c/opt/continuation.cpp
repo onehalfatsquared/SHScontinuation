@@ -1147,6 +1147,63 @@ void testSymmetries() {
 
 }
 
+void testLJ() {
+	//test the lennard jones gradient and hessian
+
+	double* testClusters = new double[6*3*2];
+	int rho = 30;
+	getFinite(6, 0, 0, rho, testClusters); 
+	column_vector X(18); column_vector Y(18);
+	getCluster(6, testClusters, 1, X);
+	//getCluster(6, testClusters, 0, Y);
+
+	int index1 = 16;
+	int index2 = 9;
+
+	//make particle arrays
+	double* particles1 = new double[6*DIMENSION];
+	double* particles2 = new double[6*DIMENSION];
+	double* particles3 = new double[6*DIMENSION];
+	double* particles4 = new double[6*DIMENSION];
+	double* particles5 = new double[6*DIMENSION];
+	double h = 1e-5;
+	Y = X; c2p(Y, particles1, 6); 
+	Y = X; Y(index1) += h; Y(index2) += h; c2p(Y, particles2, 6); 
+	Y = X; Y(index1) += h; Y(index2) -= h; c2p(Y, particles3, 6); 
+	Y = X; Y(index1) -= h; Y(index2) += h; c2p(Y, particles4, 6); 
+	Y = X; Y(index1) -= h; Y(index2) -= h; c2p(Y, particles5, 6); 
+	
+
+	//get the energy for each set
+	double E = ljEval(particles1, 1,  1, 6);
+	double Epp = ljEval(particles2, 1,  1, 6);
+	double Epm = ljEval(particles3, 1, 1, 6);
+	double Emp = ljEval(particles4, 1,  1, 6);
+	double Emm = ljEval(particles5, 1, 1, 6);
+
+	//get gradients from function and FD
+	column_vector g(18); ljGrad(particles1, 1, 1, 6, g);
+	double gEst = (Epp-Emm)/(4*h);
+	printf("Gradients: Function: %f, finite difference %f\n", g(index1), gEst);
+
+	//get hessian from functions and FD
+	matrix<double> H(18,18); hessLJ(X, 1, 1, 6, H);
+	double hEst = (Epp - Epm - Emp +Emm)/(4*h*h);
+	printf("Hessians: Function: %f, finite difference %f\n", H(index1,index2), hEst);
+
+
+
+
+
+	//free memory
+	delete []testClusters; delete []particles1; delete []particles2;
+
+
+
+
+
+}
+
 
 
 

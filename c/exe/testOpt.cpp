@@ -11,7 +11,8 @@ int main() {
 	//testCV(clusters);
 	//testRot();
 	//testTestSame();
-	testSymmetries();
+	//testSymmetries();
+	testLJ();
 
 	delete []clusters;
 
