@@ -20,6 +20,7 @@ int main(int argc, char* argv[]) {
 	double* clusters = new double[DIMENSION*N*num_clusters];
 	getSHS(N,num_clusters,clusters);
 	//descent(N, num_clusters, clusters, kapType, potential);
+	std::cout << "hello";
 	parallelDescent(N, num_clusters, clusters, kapType, potential);
 	
 

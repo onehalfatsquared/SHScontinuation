@@ -19,7 +19,7 @@ class Parameters {
 };
 
 #define LOW 7.51
-#define MED 8.3
+#define MED 8.29
 #define HIGH 9.5
 
 #define STEP 0.01
@@ -65,5 +65,10 @@ void fillSymmetries(int N, matrix<double> particles, matrix<double>* symmetries)
 void makeSwapVect(std::vector<std::vector<int>>& swaps);
 void subtractCOM(int N, matrix<double>& particles); 
 void getInteriaTensor(int N, matrix<double> particles, matrix<double>& inertia);
+
+//compute an edit distance
+void getEditDistance(int N, int sticky1, int potential1, int sticky2, int potential2);
+double getRMSD(int N, column_vector c1, column_vector c2);
+void getScatterData(int N);
 
 

@@ -67,6 +67,9 @@ int getNumClusters(int N) {
 	else if (N == 7) tot =  5;
 	else if (N == 8) tot = 13;
 	else if (N == 9) tot = 52; 
+	else if (N == 10) tot = 263; 
+	else if (N == 11) tot = 1659; 
+	else if (N == 12) tot = 11980; 
 
 	return tot;
 }
@@ -478,7 +481,7 @@ void parallelDescent(int N, int num_clusters, double* clusters, int sticky, int 
 				printf("Cluster %d needs to be re-optimized at range %f\n", c, range);
 				reOpt(X, range, E, N, potential, neg_index, p, Hd);
 			}
-			
+
 			//store the new minimum
 			storeCluster(N, X, c, clusters);
 
@@ -967,6 +970,125 @@ void getInteriaTensor(int N, matrix<double> particles, matrix<double>& inertia) 
 	inertia = xx, xy, xz,
 						xy, yy, yz, 
 						xz, yz, zz;
+
+}
+
+/****************************************************************************/
+
+/* Functions for edit distance */
+
+/****************************************************************************/
+
+double getRMSD(int N, column_vector c1, column_vector c2) {
+	//get rmsd between two clusters
+
+	int metric = 1;  //L1 norm of sorted particle distances
+
+	//get the distance between clusters in some metric
+	double distance = computeClusterMetric(N, c1, c2, metric); 
+
+	return distance;
+
+}
+
+void getEditDistance(int N, int sticky1, int potential1, int sticky2, int potential2) {
+	//get the summed rmsd for all clusters over 2 choices of potential and sticky param
+
+	//parameters
+	double range = 50;
+	int num_clusters = getNumClusters(N);
+	double* clusters1 = new double[DIMENSION*N*num_clusters];
+	double* clusters2 = new double[DIMENSION*N*num_clusters];
+	double end = 1;
+
+	int step1 = 1;
+
+	//output file - list of merges and ranges
+	std::string filename = "n" + std::to_string(N);
+	filename += "diff";
+	filename += std::to_string(sticky1);
+	filename += std::to_string(sticky2);
+	filename += std::to_string(potential1);
+	filename += std::to_string(potential2);
+	filename += ".txt";
+
+	std::ofstream ofile;
+	ofile.open(filename);
+
+
+	range = range - step1;
+	while (range >= end) {
+		getFinite(N, sticky1, potential1, range, clusters1);
+		getFinite(N, sticky2, potential2, range, clusters2);
+
+		column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
+
+		double S = 0;
+
+		for (int i = 0; i < num_clusters; i++) {
+			getCluster(N, clusters1, i, cluster1); getCluster(N, clusters2, i, cluster2); 
+			double distance = getRMSD(N, cluster1, cluster2);
+			S += distance;
+		}
+
+		ofile << range << ' ' << S << "\n";
+		range -= step1;
+	}
+
+
+
+	//free memory
+	delete []clusters1; delete []clusters2;
+
+	ofile.close();
+
+}
+
+void getScatterData(int N) {
+	//get all rmsds at kmed between clusters from each potential
+
+	//parameters
+	double range = 50;
+	int num_clusters = getNumClusters(N);
+	double* clusters1 = new double[DIMENSION*N*num_clusters];
+	double* clusters2 = new double[DIMENSION*N*num_clusters];
+	double end = 1;
+
+	int step1 = 1;
+
+	//output file - list of merges and ranges
+	std::string filename = "n" + std::to_string(N);
+	filename += "scat.txt";
+
+	std::ofstream ofile;
+
+	ofile.open(filename, std::ios_base::app);
+
+	range = range - step1;
+	while (range >= end) {
+		getFinite(N, 1, 0, range, clusters1);
+		getFinite(N, 1, 1, range, clusters2);
+
+		column_vector cluster1(DIMENSION*N), cluster2(DIMENSION*N);
+
+		ofile << range << ' ';
+		for (int i = 0; i < num_clusters; i++) {
+			getCluster(N, clusters1, i, cluster1); getCluster(N, clusters2, i, cluster2); 
+			double distance = getRMSD(N, cluster1, cluster2);
+			ofile << distance << ' ';
+			
+		}
+
+		ofile << "\n";
+		range -= step1;
+	}
+
+
+
+	//free memory
+	delete []clusters1; delete []clusters2;
+
+	ofile.close();
 
 }
 
