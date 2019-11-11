@@ -16,8 +16,8 @@ int main(int argc, char* argv[]) {
 
 	int num_clusters = getNumClusters(N);
 
-	makeGraph(N, num_clusters, kapType, potential);
-	//makeGraph(N, num_clusters, kapType);
+	//makeGraph(N, num_clusters, kapType, potential);
+	makeGraph(N, num_clusters, kapType);
 
 	
 

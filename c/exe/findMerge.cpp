@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
 	int num_clusters = getNumClusters(N);
 
 	findMerges(N, num_clusters, kapType, potential);
+	//findMergesCoarse(N, num_clusters, kapType, potential);
 
 
 

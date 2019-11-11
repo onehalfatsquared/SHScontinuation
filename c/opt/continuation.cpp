@@ -374,7 +374,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		Parameters p = Parameters(N, potential, range, E);
 
 		//loop over the clusters 
-		for (int c = 0; c < num_clusters; c++) {
+		for (int c = 27; c < 28; c++) {
 			//get the previous cluster
 			column_vector X(DIMENSION*N); 
 			getCluster(N, clusters, c, X);
@@ -413,7 +413,7 @@ void descent(int N, int num_clusters, double* clusters, int sticky, int potentia
 		}
 
 		//output the cluters to a file
-		printClusters(N, num_clusters, clusters, range, sticky, potential);
+		//printClusters(N, num_clusters, clusters, range, sticky, potential);
 
 		//test if same 
 		//double d;
@@ -534,6 +534,65 @@ void rMinFill(int N, int num_clusters, double* clusters, double* rMins, double r
 
 }
 
+void findMergesCoarse(int N, int num_clusters, int sticky, int potential) {
+	//determine when clusters merge
+
+	//parameters
+	double range = 50;
+	double* clusters = new double[DIMENSION*N*num_clusters];
+	std::vector<int> merged; //merged cluster storage
+	double end = 1;
+	double* rMins = new double[num_clusters]; 
+	double distance;
+
+	//output file - list of merges and ranges
+	std::string filename = "../graphviz/n" + std::to_string(N);
+	if (potential == 0) filename += "rho";
+	else if (potential == 1) filename += "m";
+	if (sticky == 0) filename += "LOW";
+	else if (sticky == 1) filename += "MED";
+	else if (sticky == 2) filename += "HIGH";
+	filename += "merges.txt";
+
+	std::ofstream ofile;
+	ofile.open(filename);
+
+
+	range = range - 1;
+	while (range > end) {
+		getFinite(N, sticky, potential, range, clusters);
+
+		for (int i = 0; i < num_clusters; i++) {
+			if (!isMerged(i, merged)) {
+				for (int j = i+1; j < num_clusters; j++) {
+					if (!isMerged(j, merged)) {
+						bool same = testSame(N, clusters, i, j, distance);
+						if (same) {
+							//check rMins for smooth cluster
+							double r1 = rMins[i]; double r2 = rMins[j];
+							//std::cout << r1 << ' ' << r2 << "\n";
+								printf("Cluster %d (rmin = %f) and cluster %d (rmin = %f) merge at range %f\n", i,r1,j,r2,range);
+								ofile << i << ' ' << j << ' ' << std::fixed << std::setprecision(4) << range << "\n";
+								merged.push_back(j);
+						}
+					}
+				}
+			}
+
+		}
+		rMinFill(N, num_clusters, clusters, rMins, range);
+		range -= 1;
+	}
+
+
+
+	//free memory
+	delete []clusters; delete []rMins;
+
+	ofile.close();
+
+}
+
 void findMerges(int N, int num_clusters, int sticky, int potential) {
 	//determine when clusters merge
 
@@ -599,7 +658,7 @@ double rMin(int N, int cNum, double* clusters, double rho) {
 	//set the tolerance for existing bonds as rough fn of rho
 	double tol;
 	if (rho > 30) tol = 1.01;
-	if (rho <= 30 && rho > 3.5) tol = 1.03;
+	if (rho <= 30 && rho > 3.5) tol = 1.035;
 	if (rho <= 3.5) tol = 1.42;
 
 	//store clusters in column vectors
@@ -1027,7 +1086,15 @@ void getEditDistance(int N, int sticky1, int potential1, int sticky2, int potent
 
 		for (int i = 0; i < num_clusters; i++) {
 			getCluster(N, clusters1, i, cluster1); getCluster(N, clusters2, i, cluster2); 
+			if (i == 9 && abs(range-38)<0.01) {
+				std::cout << cluster1 << "\n";
+			}
 			double distance = getRMSD(N, cluster1, cluster2);
+			if (distance > 0.001) {
+				std::cout << cluster1 << "\n";
+				std::cout << cluster2 << "\n";
+				printf("CLuster %d, range %f, diff = %f\n", i, range, distance);
+			}
 			S += distance;
 		}
 

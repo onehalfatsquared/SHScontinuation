@@ -18,9 +18,12 @@ class Parameters {
 
 };
 
-#define LOW 7.51
-#define MED 8.29
-#define HIGH 9.5
+#define LOW 5.75
+//#define LOW 7.51
+//#define MED 8.29
+#define MED 8.0
+//#define HIGH 9.49
+#define HIGH 9.3
 
 #define STEP 0.01
 
@@ -53,6 +56,7 @@ void printClusters(int N, int num_clusters, double* clusters, double range,
 //functions to detect merges and compute properties of clusters
 bool isMerged(int cluster, std::vector<int> merged); 
 void findMerges(int N, int num_clusters, int sticky, int potential); 
+void findMergesCoarse(int N, int num_clusters, int sticky, int potential);
 double rMin(int N, int cNum, double* clusters, double rho); 
 void rMinFill(int N, int num_clusters, double* clusters, double* rMins, double rho);
 bool testSame(int N, double* clusters, int c1, int c2, double& distance); 

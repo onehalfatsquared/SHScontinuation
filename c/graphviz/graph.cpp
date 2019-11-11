@@ -8,13 +8,33 @@
 
 
 void printCluster(std::ofstream& out_str, int index, std::string* range, int potential) {
-	//print a node creation in graphviz
+	//print a node creation in graphviz - only print the merge range
 
 	std::string rangeChar;
 	if (potential == 0) {
 		rangeChar = "p";
 		out_str << "\"" + std::to_string(index) + rangeChar + range[index] +"\" [label= \"" 
 		+ "&#961;=" + range[index] +
+		+ "\" , shape=circle  , width=0.1, regular=1, style=filled, fillcolor=white]; \n";
+	}
+	else if (potential == 1) {
+		rangeChar = "m";
+		out_str << "\"" + std::to_string(index) + rangeChar + range[index] +"\" [label= \"" 
+		+ "m=" + range[index] +
+		+ "\" , shape=circle  , width=0.1, regular=1, style=filled, fillcolor=white]; \n";
+	}
+	
+	
+} 
+
+void printClusterID(std::ofstream& out_str, int index, std::string* range, int potential) {
+	//print a node creation in graphviz - print the cluster ids too
+
+	std::string rangeChar;
+	if (potential == 0) {
+		rangeChar = "p";
+		out_str << "\"" + std::to_string(index) + rangeChar + range[index] +"\" [label= \"" 
+		+ std::to_string(index) + "\\n\\n" + "&#961;=" + range[index] +
 		+ "\" , shape=circle  , width=0.1, regular=1, style=filled, fillcolor=white]; \n";
 	}
 	else if (potential == 1) {
@@ -38,8 +58,15 @@ void sameRank(std::ofstream& out_str, std::vector<std::string> states) {
 	out_str << "}\n";
 }
 
-void makeEdge(std::ofstream& out_str, std::string source, std::string target) {
+void makeInvisible(std::ofstream& out_str, std::string source, std::string target) {
 	//draw an edge from source to target - no labels
+
+	out_str << "\"" + source + "\" -> \"" + 
+	target +  + "\" [style=invis] \n";
+}
+
+void makeEdge(std::ofstream& out_str, std::string source, std::string target) {
+	//draw an invisible edge from source to target 
 
 	out_str << "\"" + source + "\" -> \"" + 
 	target + "\" \n";
@@ -87,10 +114,12 @@ void makeGraph(int N, int num_clusters, int sticky, int potential) {
 	//create vector for same rank output - create initial clusters at same rank
 	std::vector<std::string> ranks; 
 	for (int cluster = 0; cluster < num_clusters; cluster++) {
-		printCluster(out_str, cluster, mergeVals, potential);
+		printClusterID(out_str, cluster, mergeVals, potential);
 		ranks.push_back(std::to_string(cluster)+rangeChar+mergeVals[cluster]);
 	}
 	sameRank(out_str, ranks);
+	std::string invisSource = ranks[0];
+	std::string invisTarget; 
 
 	//clear out ranks and set check for setting same ranks
 	ranks.clear();
@@ -108,7 +137,7 @@ void makeGraph(int N, int num_clusters, int sticky, int potential) {
 		std::string old_range = mergeVals[i]; 
 		if (old_range != current_range) { //need to make new node for this range
 			mergeVals[i] = current_range;
-			printCluster(out_str, i, mergeVals, potential);
+			printClusterID(out_str, i, mergeVals, potential);
 			makeEdge(out_str, std::to_string(i)+rangeChar+old_range, 
 							 std::to_string(i)+rangeChar+current_range);
 		}
@@ -117,8 +146,17 @@ void makeGraph(int N, int num_clusters, int sticky, int potential) {
 		mergeVals[j] = current_range;
 		makeEdge(out_str, std::to_string(j)+rangeChar+old_range, 
 						 std::to_string(i)+rangeChar+current_range);
-		ranks.push_back(std::to_string(i)+rangeChar+current_range);
-		sameRank(out_str, ranks); ranks.clear();
+		if (prev_range == current_range) {
+			ranks.push_back(std::to_string(i)+rangeChar+current_range);
+		}
+		else {
+			sameRank(out_str, ranks); ranks.clear();
+			prev_range = current_range;
+			invisTarget = std::to_string(i)+rangeChar+current_range;
+			ranks.push_back(invisTarget);
+			makeInvisible(out_str, invisSource, invisTarget);
+			invisSource = invisTarget;
+		}
 
 	}
 

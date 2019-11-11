@@ -18,8 +18,8 @@ int main(int argc, char* argv[]) {
 
 	int num_clusters = getNumClusters(N);
 
-	//getEditDistance(N, sticky1, potential1, sticky2, potential2);
-	getScatterData(N);
+	getEditDistance(N, sticky1, potential1, sticky2, potential2);
+	//getScatterData(N);
 
 
 
